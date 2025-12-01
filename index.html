@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BallDex Simulator</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Silhouette filter for uncaught balls in Dex */
+        .uncaught-img { 
+            filter: grayscale(100%) brightness(0) invert(1) opacity(0.5); 
+        }
+        /* Hover effect to hint at the ball */
+        .group:hover .uncaught-img {
+            opacity: 0.8;
+        }
+
+        /* Custom Scrollbar for Dex/Index */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2f3136; }
+        ::-webkit-scrollbar-thumb { background: #202225; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4f545c; }
+        
+        /* Toggle Switch */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #68D391;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #68D391;
+        }
+    </style>
+</head>
+<body class="bg-[#36393e] text-gray-100 min-h-screen flex flex-col">
+
+    <!-- Navbar (Hidden on Login) -->
+    <nav id="navbar" class="hidden bg-[#2f3136] border-b border-[#202225] p-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="window.switchView('spawn')">
+                <div class="bg-indigo-500 p-2 rounded-full shadow-lg shadow-indigo-500/20">
+                    <i class="fas fa-globe-americas text-white text-lg"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide text-white leading-tight">BallDex<span class="text-indigo-400">Sim</span></h1>
+                    <div class="text-[10px] text-gray-400 font-mono">Logged in as: <span id="nav-username" class="text-indigo-300">Guest</span></div>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 sm:gap-3">
+                <button id="nav-spawn" onclick="window.switchView('spawn')" class="px-3 py-2 sm:px-4 sm:py-2 rounded-md transition-all bg-[#40444b] text-white font-medium hover:bg-[#4f545c]">
+                    Spawn
+                </button>
+                <button id="nav-dex" onclick="window.switchView('dex')" class="px-3 py-2 sm:px-4 sm:py-2 rounded-md transition-all text-gray-400 hover:text-gray-200 font-medium flex items-center gap-2 hover:bg-[#40444b]">
+                    <i class="fas fa-book"></i> <span class="hidden sm:inline">Dex</span>
+                </button>
+                <button id="nav-index" onclick="window.switchView('index')" class="px-3 py-2 sm:px-4 sm:py-2 rounded-md transition-all text-gray-400 hover:text-gray-200 font-medium flex items-center gap-2 hover:bg-[#40444b]">
+                    <i class="fas fa-list"></i> <span class="hidden sm:inline">Index</span>
+                </button>
+                <button id="nav-settings" onclick="window.switchView('settings')" class="px-3 py-2 rounded-md transition-all text-gray-400 hover:bg-[#40444b] hover:text-gray-200" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
+                <button onclick="window.logout()" class="px-3 py-2 rounded-md transition-all text-red-400 hover:bg-red-500/10 hover:text-red-300" title="Logout">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col items-center justify-center p-4">
+
+        <!-- VIEW: LOGIN -->
+        <div id="view-login" class="w-full max-w-md fade-in">
+            <div class="bg-[#2f3136] p-8 rounded-xl shadow-2xl border border-[#202225] text-center">
+                <div class="bg-indigo-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/30">
+                    <i class="fas fa-globe-americas text-3xl text-white"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-white mb-2">Welcome Trainer</h2>
+                <p class="text-gray-400 mb-8">Enter your credentials to start collecting.</p>
+                
+                <form onsubmit="window.handleLogin(event)" class="space-y-4">
+                    <div class="relative text-left">
+                        <label class="text-xs text-gray-500 font-bold ml-1 uppercase">Username</label>
+                        <div class="relative mt-1">
+                            <i class="fas fa-user absolute left-4 top-3.5 text-gray-500"></i>
+                            <input id="login-input" type="text" placeholder="Enter username" required 
+                                class="w-full bg-[#202225] text-white p-3 pl-10 rounded-lg border border-[#40444b] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+                        </div>
+                    </div>
+                    
+                    <div class="relative text-left">
+                        <label class="text-xs text-gray-500 font-bold ml-1 uppercase">Password</label>
+                        <div class="relative mt-1">
+                            <i class="fas fa-lock absolute left-4 top-3.5 text-gray-500"></i>
+                            <input id="login-password" type="password" placeholder="Create or enter password" required 
+                                class="w-full bg-[#202225] text-white p-3 pl-10 rounded-lg border border-[#40444b] focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all font-medium">
+                        </div>
+                    </div>
+
+                    <div id="login-error" class="text-red-400 text-sm font-bold hidden">Invalid Password!</div>
+
+                    <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-all transform hover:scale-[1.02] shadow-lg mt-2">
+                        Start Adventure
+                    </button>
+                </form>
+                <p class="text-xs text-gray-600 mt-6">New usernames will create a new save file automatically.</p>
+            </div>
+        </div>
+
+        <!-- VIEW: SPAWN -->
+        <div id="view-spawn" class="hidden w-full max-w-md fade-in">
+            
+            <div class="bg-[#2f3136] p-6 rounded-xl shadow-2xl border border-[#202225] relative overflow-hidden">
+                
+                <!-- Rarity Glow Bar -->
+                <div id="rarity-glow" class="hidden absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500 via-yellow-500 to-red-500 animate-pulse"></div>
+
+                <div class="mb-4 flex justify-between items-center text-sm text-gray-400 font-mono bg-[#202225] p-2 rounded-lg">
+                    <span>Streak: <span id="streak-display" class="text-indigo-400 font-bold">0</span></span>
+                    <span>Caught: <span id="caught-count-spawn" class="text-green-400">0</span> / <span id="total-count-spawn">0</span></span>
+                </div>
+
+                <!-- The Ball Image -->
+                <div class="relative aspect-[4/3] w-full bg-[#202225] rounded-lg mb-6 flex items-center justify-center overflow-hidden group border border-[#202225]">
+                    <!-- Background pattern for style -->
+                    <div class="absolute inset-0 opacity-5" style="background-image: radial-gradient(#4f545c 1px, transparent 1px); background-size: 20px 20px;"></div>
+                    
+                    <!-- ADDED referrerpolicy="no-referrer" HERE -->
+                    <img id="spawn-image" src="" alt="Countryball" referrerpolicy="no-referrer" class="max-w-[80%] max-h-[80%] object-contain drop-shadow-2xl hidden z-10 transition-transform duration-300 hover:scale-110">
+                    <div id="spawn-hidden-overlay" class="hidden absolute inset-0 bg-[#202225] flex flex-col items-center justify-center z-20">
+                         <i class="fas fa-question-circle text-6xl text-gray-700 animate-bounce"></i>
+                         <p class="text-gray-500 font-mono mt-4 text-xs">HARD MODE ACTIVE</p>
+                    </div>
+
+                    <div id="loader" class="animate-spin rounded-full h-12 w-12 border-4 border-indigo-500 border-t-transparent"></div>
+                    
+                    <!-- Error Message Placeholder -->
+                    <div id="image-error" class="hidden absolute inset-0 flex flex-col items-center justify-center text-red-400 text-xs font-mono p-4 text-center z-20">
+                        <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                        <span class="mt-2 text-red-300 font-bold">Failed to load:</span>
+                        <span id="error-ball-name" class="text-white font-bold text-sm bg-red-900/50 px-2 py-1 rounded mt-1">Unknown</span>
+                        <button onclick="window.skipBall()" class="mt-4 text-indigo-400 underline hover:text-indigo-300">Skip This Ball</button>
+                    </div>
+                </div>
+
+                <!-- Message Area -->
+                <div id="game-message" class="mb-4 text-center font-bold h-6 text-indigo-300 transition-colors duration-200">
+                    A wild countryball appeared!
+                </div>
+
+                <!-- Input Form -->
+                <form id="guess-form" class="relative group" onsubmit="window.handleGuess(event)">
+                    <input id="guess-input" type="text" placeholder="Guess the name..." autocomplete="off"
+                        class="w-full bg-[#40444b] text-white p-4 pl-5 pr-14 rounded-lg border border-[#202225] focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 placeholder-gray-500 font-medium transition-all">
+                    <button type="submit" class="absolute right-2 top-2 bottom-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white w-10 flex items-center justify-center transition-colors shadow-md">
+                        <i class="fas fa-paper-plane text-sm"></i>
+                    </button>
+                </form>
+
+                <div class="mt-4 text-center">
+                    <button onclick="window.skipBall()" class="text-xs text-gray-500 hover:text-gray-300 hover:underline cursor-pointer transition-colors">
+                        I don't know, skip this ball
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-8 text-gray-500 text-sm text-center">
+                <p>Type the name of the country shown above.</p>
+                <p class="mt-1 text-xs opacity-60">Accepts abbreviations like "UK", "USA", "UAE".</p>
+            </div>
+        </div>
+
+        <!-- VIEW: DEX -->
+        <div id="view-dex" class="hidden w-full max-w-6xl fade-in pb-10">
+            <!-- Stats Header -->
+            <div class="bg-[#2f3136] rounded-xl p-6 mb-6 flex flex-col sm:flex-row items-center justify-between border border-[#202225] shadow-lg">
+                <div class="mb-4 sm:mb-0 text-center sm:text-left">
+                    <h2 class="text-2xl font-bold text-white flex items-center gap-2 justify-center sm:justify-start">
+                        <i class="fas fa-book-open text-indigo-500"></i> BallDex Completion
+                    </h2>
+                    <p class="text-gray-400 text-sm mt-1">Collect all countryballs to become the master!</p>
+                </div>
+                <div class="text-center sm:text-right bg-[#202225] p-4 rounded-lg min-w-[200px]">
+                    <div id="completion-percent" class="text-4xl font-bold text-indigo-400">0%</div>
+                    <div class="text-xs text-gray-500 font-mono mt-1">
+                        <span id="caught-count-dex" class="text-green-400 font-bold">0</span> / <span id="total-count-dex">0</span> Caught
+                    </div>
+                    <div class="w-full bg-gray-700 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="completion-bar" class="bg-indigo-500 h-full rounded-full" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls: Legend & Sort & Search -->
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <!-- Legend -->
+                <div class="flex-1 flex gap-2 overflow-x-auto pb-2 scrollbar-hide items-center" id="rarity-legend">
+                    <!-- Legend items injected via JS -->
+                </div>
+                
+                <div class="flex gap-2 w-full md:w-auto">
+                    <!-- Sort -->
+                    <div class="relative min-w-[140px]">
+                        <i class="fas fa-sort absolute left-3 top-3.5 text-gray-500"></i>
+                        <select onchange="window.handleSort(this.value)" class="w-full bg-[#202225] text-white p-3 pl-9 rounded-lg border border-[#40444b] focus:outline-none focus:border-indigo-500 font-medium appearance-none cursor-pointer">
+                            <option value="rarity_desc">Rarity (High)</option>
+                            <option value="rarity_asc">Rarity (Low)</option>
+                            <option value="name_asc">Name (A-Z)</option>
+                            <option value="name_desc">Name (Z-A)</option>
+                            <option value="caught_desc">Caught First</option>
+                            <option value="caught_asc">Missing First</option>
+                        </select>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="relative flex-grow">
+                        <i class="fas fa-search absolute left-4 top-3.5 text-gray-500"></i>
+                        <input type="text" id="dex-search" placeholder="Search..." onkeyup="window.filterDex()" 
+                            class="w-full bg-[#202225] text-white p-3 pl-10 rounded-lg border border-[#40444b] focus:outline-none focus:border-indigo-500 font-medium">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Grid -->
+            <div id="dex-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <!-- Grid items injected via JS -->
+            </div>
+        </div>
+
+        <!-- VIEW: INDEX (Reference Guide) -->
+        <div id="view-index" class="hidden w-full max-w-6xl fade-in pb-10">
+            <!-- Header -->
+            <div class="bg-[#2f3136] rounded-xl p-6 mb-6 border border-[#202225] shadow-lg">
+                <h2 class="text-2xl font-bold text-white flex items-center gap-2">
+                    <i class="fas fa-list-alt text-indigo-500"></i> BallDex Index
+                </h2>
+                <p class="text-gray-400 text-sm mt-1">Complete reference list of all available balls.</p>
+            </div>
+
+            <!-- Search for Index -->
+            <div class="mb-6 relative">
+                <i class="fas fa-search absolute left-4 top-3.5 text-gray-500"></i>
+                <input type="text" id="index-search" placeholder="Search reference list..." onkeyup="window.filterIndex()" 
+                    class="w-full bg-[#202225] text-white p-3 pl-10 rounded-lg border border-[#40444b] focus:outline-none focus:border-indigo-500 font-medium">
+            </div>
+
+            <!-- Grid -->
+            <div id="index-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <!-- Grid items injected via JS -->
+            </div>
+        </div>
+
+        <!-- VIEW: SETTINGS -->
+        <div id="view-settings" class="hidden w-full max-w-2xl fade-in pb-10">
+            <div class="bg-[#2f3136] rounded-xl p-8 border border-[#202225] shadow-lg">
+                <h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+                    <i class="fas fa-cog text-gray-400"></i> Settings
+                </h2>
+
+                <!-- Gameplay Settings -->
+                <div class="space-y-6">
+                    <div class="flex items-center justify-between border-b border-[#40444b] pb-4">
+                        <div>
+                            <h3 class="text-lg font-semibold text-white">Hard Mode</h3>
+                            <p class="text-sm text-gray-400">Hide the countryball image while guessing.</p>
+                        </div>
+                        <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                            <input type="checkbox" name="toggle" id="hard-mode-toggle" onchange="window.toggleHardMode(this)" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-gray-400 transition-all duration-300"/>
+                            <label for="hard-mode-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-500 cursor-pointer"></label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Management -->
+                <h3 class="text-lg font-semibold text-white mt-8 mb-4">Data Management</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-[#202225] p-4 rounded-lg border border-[#40444b]">
+                        <h4 class="font-bold text-gray-300 mb-2">Export Data</h4>
+                        <p class="text-xs text-gray-500 mb-4">Copy your save data to clipboard to transfer it.</p>
+                        <button onclick="window.exportData()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded text-sm font-medium transition-colors">
+                            <i class="fas fa-copy mr-1"></i> Copy Save Code
+                        </button>
+                    </div>
+                    
+                    <div class="bg-[#202225] p-4 rounded-lg border border-[#40444b]">
+                        <h4 class="font-bold text-red-300 mb-2">Danger Zone</h4>
+                        <p class="text-xs text-gray-500 mb-4">Permanently delete your current progress.</p>
+                        <button onclick="window.resetData()" class="w-full bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white py-2 rounded text-sm font-medium transition-colors border border-red-800/50">
+                            <i class="fas fa-trash-alt mr-1"></i> Reset Progress
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mt-8 text-center text-xs text-gray-600 font-mono">
+                    BallDex Simulator v1.2
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+    // IIFE to protect scope
+    (function() {
+        
+        // --- DATA POPULATION ---
+        const MODERN_COUNTRIES = [
+            {n:"Afghanistan", c:"af"}, {n:"Albania", c:"al"}, {n:"Algeria", c:"dz"}, {n:"Andorra", c:"ad"}, {n:"Angola", c:"ao"}, 
+            {n:"Antigua and Barbuda", c:"ag"}, {n:"Argentina", c:"ar"}, {n:"Armenia", c:"am"}, {n:"Australia", c:"au"}, {n:"Austria", c:"at"}, 
+            {n:"Azerbaijan", c:"az"}, {n:"Bahamas", c:"bs"}, {n:"Bahrain", c:"bh"}, {n:"Bangladesh", c:"bd"}, {n:"Barbados", c:"bb"}, 
+            {n:"Belarus", c:"by"}, {n:"Belgium", c:"be"}, {n:"Belize", c:"bz"}, {n:"Benin", c:"bj"}, {n:"Bhutan", c:"bt"}, 
+            {n:"Bolivia", c:"bo"}, {n:"Bosnia and Herzegovina", c:"ba"}, {n:"Botswana", c:"bw"}, {n:"Brazil", c:"br"}, {n:"Brunei", c:"bn"}, 
+            {n:"Bulgaria", c:"bg"}, {n:"Burkina Faso", c:"bf"}, {n:"Burundi", c:"bi"}, {n:"Cambodia", c:"kh"}, {n:"Cameroon", c:"cm"}, 
+            {n:"Canada", c:"ca"}, {n:"Cape Verde", c:"cv"}, {n:"Central African Republic", c:"cf"}, {n:"Chad", c:"td"}, {n:"Chile", c:"cl"}, 
+            {n:"China", c:"cn", a:["prc"]}, {n:"Colombia", c:"co"}, {n:"Comoros", c:"km"}, {n:"Congo", c:"cg"}, {n:"DR Congo", c:"cd", a:["drc"]}, 
+            {n:"Costa Rica", c:"cr"}, {n:"Croatia", c:"hr"}, {n:"Cuba", c:"cu"}, {n:"Cyprus", c:"cy"}, {n:"Czechia", c:"cz"}, 
+            {n:"Denmark", c:"dk"}, {n:"Djibouti", c:"dj"}, {n:"Dominica", c:"dm"}, {n:"Dominican Republic", c:"do"}, {n:"Ecuador", c:"ec"}, 
+            {n:"Egypt", c:"eg"}, {n:"El Salvador", c:"sv"}, {n:"Equatorial Guinea", c:"gq"}, {n:"Eritrea", c:"er"}, {n:"Estonia", c:"ee"}, 
+            {n:"Eswatini", c:"sz"}, {n:"Ethiopia", c:"et"}, {n:"Fiji", c:"fj"}, {n:"Finland", c:"fi"}, {n:"France", c:"fr"}, 
+            {n:"Gabon", c:"ga"}, {n:"Gambia", c:"gm"}, {n:"Georgia", c:"ge"}, {n:"Germany", c:"de"}, {n:"Ghana", c:"gh"}, 
+            {n:"Greece", c:"gr"}, {n:"Grenada", c:"gd"}, {n:"Guatemala", c:"gt"}, {n:"Guinea", c:"gn"}, {n:"Guinea-Bissau", c:"gw"}, 
+            {n:"Guyana", c:"gy"}, {n:"Haiti", c:"ht"}, {n:"Honduras", c:"hn"}, {n:"Hungary", c:"hu"}, {n:"Iceland", c:"is"}, 
+            {n:"India", c:"in"}, {n:"Indonesia", c:"id"}, {n:"Iran", c:"ir"}, {n:"Iraq", c:"iq"}, {n:"Ireland", c:"ie"}, 
+            {n:"Israel", c:"il"}, {n:"Italy", c:"it"}, {n:"Ivory Coast", c:"ci"}, {n:"Jamaica", c:"jm"}, {n:"Japan", c:"jp"}, 
+            {n:"Jordan", c:"jo"}, {n:"Kazakhstan", c:"kz"}, {n:"Kenya", c:"ke"}, {n:"Kiribati", c:"ki"}, {n:"Kuwait", c:"kw"}, 
+            {n:"Kyrgyzstan", c:"kg"}, {n:"Laos", c:"la"}, {n:"Latvia", c:"lv"}, {n:"Lebanon", c:"lb"}, {n:"Lesotho", c:"ls"}, 
+            {n:"Liberia", c:"lr"}, {n:"Libya", c:"ly"}, {n:"Liechtenstein", c:"li"}, {n:"Lithuania", c:"lt"}, {n:"Luxembourg", c:"lu"}, 
+            {n:"Madagascar", c:"mg"}, {n:"Malawi", c:"mw"}, {n:"Malaysia", c:"my"}, {n:"Maldives", c:"mv"}, {n:"Mali", c:"ml"}, 
+            {n:"Malta", c:"mt"}, {n:"Marshall Islands", c:"mh"}, {n:"Mauritania", c:"mr"}, {n:"Mauritius", c:"mu"}, {n:"Mexico", c:"mx"}, 
+            {n:"Micronesia", c:"fm"}, {n:"Moldova", c:"md"}, {n:"Monaco", c:"mc"}, {n:"Mongolia", c:"mn"}, {n:"Montenegro", c:"me"}, 
+            {n:"Morocco", c:"ma"}, {n:"Mozambique", c:"mz"}, {n:"Myanmar", c:"mm"}, {n:"Namibia", c:"na"}, {n:"Nauru", c:"nr"}, 
+            {n:"Nepal", c:"np"}, {n:"Netherlands", c:"nl"}, {n:"New Zealand", c:"nz"}, {n:"Nicaragua", c:"ni"}, {n:"Niger", c:"ne"}, 
+            {n:"Nigeria", c:"ng"}, {n:"North Korea", c:"kp", a:["dprk"]}, {n:"North Macedonia", c:"mk"}, {n:"Norway", c:"no"}, {n:"Oman", c:"om"}, 
+            {n:"Pakistan", c:"pk"}, {n:"Palau", c:"pw"}, {n:"Palestine", c:"ps"}, {n:"Panama", c:"pa"}, {n:"Papua New Guinea", c:"pg"}, 
+            {n:"Paraguay", c:"py"}, {n:"Peru", c:"pe"}, {n:"Philippines", c:"ph"}, {n:"Poland", c:"pl"}, {n:"Portugal", c:"pt"}, 
+            {n:"Qatar", c:"qa"}, {n:"Romania", c:"ro"}, {n:"Russia", c:"ru"}, {n:"Rwanda", c:"rw"}, {n:"Saint Kitts and Nevis", c:"kn"}, 
+            {n:"Saint Lucia", c:"lc"}, {n:"Saint Vincent", c:"vc"}, {n:"Samoa", c:"ws"}, {n:"San Marino", c:"sm"}, {n:"Sao Tome", c:"st"}, 
+            {n:"Saudi Arabia", c:"sa"}, {n:"Senegal", c:"sn"}, {n:"Serbia", c:"rs"}, {n:"Seychelles", c:"sc"}, {n:"Sierra Leone", c:"sl"}, 
+            {n:"Singapore", c:"sg"}, {n:"Slovakia", c:"sk"}, {n:"Slovenia", c:"si"}, {n:"Solomon Islands", c:"sb"}, {n:"Somalia", c:"so"}, 
+            {n:"South Africa", c:"za"}, {n:"South Korea", c:"kr"}, {n:"South Sudan", c:"ss"}, {n:"Spain", c:"es"}, {n:"Sri Lanka", c:"lk"}, 
+            {n:"Sudan", c:"sd"}, {n:"Suriname", c:"sr"}, {n:"Sweden", c:"se"}, {n:"Switzerland", c:"ch"}, {n:"Syria", c:"sy"}, 
+            {n:"Taiwan", c:"tw"}, {n:"Tajikistan", c:"tj"}, {n:"Tanzania", c:"tz"}, {n:"Thailand", c:"th"}, {n:"Timor-Leste", c:"tl"}, 
+            {n:"Togo", c:"tg"}, {n:"Tonga", c:"to"}, {n:"Trinidad and Tobago", c:"tt"}, {n:"Tunisia", c:"tn"}, {n:"Turkey", c:"tr"}, 
+            {n:"Turkmenistan", c:"tm"}, {n:"Tuvalu", c:"tv"}, {n:"Uganda", c:"ug"}, {n:"Ukraine", c:"ua"}, {n:"UAE", c:"ae"}, 
+            {n:"UK", c:"gb"}, {n:"USA", c:"us"}, {n:"Uruguay", c:"uy"}, {n:"Uzbekistan", c:"uz"}, {n:"Vanuatu", c:"vu"}, 
+            {n:"Vatican City", c:"va"}, {n:"Venezuela", c:"ve"}, {n:"Vietnam", c:"vn"}, {n:"Yemen", c:"ye"}, {n:"Zambia", c:"zm"}, 
+            {n:"Zimbabwe", c:"zw"}, {n:"Kosovo", c:"xk"}
+        ];
+
+        // FIXED DATA LIST (Now using DIRECT PNG THUMBS to avoid redirects)
+        const SPECIAL_BALLS = [
+            // T1 / Rares
+            { id: 'reichtangle', name: 'Reichtangle', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/Flag_of_the_German_Empire.svg/320px-Flag_of_the_German_Empire.svg.png', aliases: ['second reich'] },
+            { id: 'british_empire', name: 'British Empire', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Flag_of_the_United_Kingdom.svg/320px-Flag_of_the_United_Kingdom.svg.png', aliases: ['be'] },
+            { id: 'russian_empire', name: 'Russian Empire', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Flag_of_Russia_%281858%E2%80%931883%29.svg/320px-Flag_of_Russia_%281858%E2%80%931883%29.svg.png', aliases: ['re'] },
+            { id: 'soviet_union', name: 'Soviet Union', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Flag_of_the_Soviet_Union.svg/320px-Flag_of_the_Soviet_Union.svg.png', aliases: ['ussr', 'cccp'] },
+            { id: 'roman_empire', name: 'Roman Empire', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Vexilloid_of_the_Roman_Empire.svg/320px-Vexilloid_of_the_Roman_Empire.svg.png', aliases: ['rome', 'spqr'] },
+            { id: 'kalmar_union', name: 'Kalmar Union', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Flag_of_the_Kalmar_Union.svg/320px-Flag_of_the_Kalmar_Union.svg.png', aliases: ['kalmar'] },
+            // FIXED QIN (Direct PNG)
+            { id: 'qin_dynasty', name: 'Qin Dynasty', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Qin_Dynasty_Flag.svg/320px-Qin_Dynasty_Flag.svg.png', aliases: ['qin'] },
+            { id: 'vatican_holy_see', name: 'Holy See', rarity: 'T1', code: 'va', aliases: ['vatican'] },
+            { id: 'sealand', name: 'Sealand', rarity: 'T1', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Flag_of_Sealand.svg/320px-Flag_of_Sealand.svg.png' },
+            
+            // Historical Empires
+            { id: 'austria_hungary', name: 'Austria-Hungary', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/Flag_of_Austria-Hungary_%281869-1918%29.svg/320px-Flag_of_Austria-Hungary_%281869-1918%29.svg.png', aliases: ['ah'] },
+            { id: 'prussia', name: 'Prussia', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Flag_of_Prussia_%281892-1918%29.svg/320px-Flag_of_Prussia_%281892-1918%29.svg.png' },
+            { id: 'qing_dynasty', name: 'Qing Dynasty', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/Flag_of_China_%281889%E2%80%931912%29.svg/320px-Flag_of_China_%281889%E2%80%931912%29.svg.png', aliases: ['qing'] },
+            { id: 'ottoman_empire', name: 'Ottoman Empire', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Flag_of_the_Ottoman_Empire.svg/320px-Flag_of_the_Ottoman_Empire.svg.png', aliases: ['ottoman'] },
+            { id: 'japanese_empire', name: 'Japanese Empire', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/War_flag_of_the_Imperial_Japanese_Army_%281868%E2%80%931945%29.svg/320px-War_flag_of_the_Imperial_Japanese_Army_%281868%E2%80%931945%29.svg.png', aliases: ['imperial japan'] },
+            { id: 'spanish_empire', name: 'Spanish Empire', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/Flag_of_Cross_of_Burgundy.svg/320px-Flag_of_Cross_of_Burgundy.svg.png' },
+            { id: 'byzantium', name: 'Byzantium', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Palaiologos-Dynasty-Eagle.svg/320px-Palaiologos-Dynasty-Eagle.svg.png', aliases: ['byzantine empire'] },
+            { id: 'ancient_greece', name: 'Ancient Greece', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/Flag_of_Greece_%281822-1978%29.svg/320px-Flag_of_Greece_%281822-1978%29.svg.png', aliases: ['greece'] },
+            // FIXED HUNS & XIONGNU (Direct PNG)
+            { id: 'hunnic_empire', name: 'Hunnic Empire', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Flag_of_the_Huns_%28supposed%29.svg/320px-Flag_of_the_Huns_%28supposed%29.svg.png', aliases: ['huns'] },
+            { id: 'xiongnu', name: 'Xiongnu', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/25/Xiongnu_Flag.svg/320px-Xiongnu_Flag.svg.png' },
+            { id: 'majapahit', name: 'Majapahit Empire', rarity: 'T8', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Flag_of_the_Majapahit_Empire.svg/320px-Flag_of_the_Majapahit_Empire.svg.png' },
+            
+            // Organizations
+            { id: 'united_nations', name: 'United Nations', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Flag_of_the_United_Nations.svg/320px-Flag_of_the_United_Nations.svg.png', aliases: ['un'] },
+            { id: 'european_union', name: 'European Union', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/Flag_of_Europe.svg/320px-Flag_of_Europe.svg.png', aliases: ['eu'] },
+            { id: 'nato', name: 'NATO', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/Flag_of_NATO.svg/320px-Flag_of_NATO.svg.png' },
+            // FIXED ASEAN (Direct PNG)
+            { id: 'asean', name: 'ASEAN', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Flag_of_ASEAN.svg/320px-Flag_of_ASEAN.svg.png' },
+            { id: 'african_union', name: 'African Union', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Flag_of_the_African_Union.svg/320px-Flag_of_the_African_Union.svg.png', aliases: ['au'] },
+            { id: 'arab_league', name: 'Arab League', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/Flag_of_the_League_of_Arab_States.svg/320px-Flag_of_the_League_of_Arab_States.svg.png' },
+
+            // More Historical
+            { id: 'napoleonic_france', name: 'Napoleonic France', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Flag_of_France.svg/320px-Flag_of_France.svg.png', aliases: ['first french empire'] },
+            // FIXED CARTHAGE (Direct PNG)
+            { id: 'carthage', name: 'Carthage', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Carthaginian_Standard.svg/320px-Carthaginian_Standard.svg.png' },
+            { id: 'ancient_egypt', name: 'Ancient Egypt', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Flag_of_Egypt_%281922%E2%80%931958%29.svg/320px-Flag_of_Egypt_%281922%E2%80%931958%29.svg.png' },
+            { id: 'ussr_ssr', name: 'Russian SFSR', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Flag_of_the_Russian_Soviet_Federative_Socialist_Republic_%281954%E2%80%931991%29.svg/320px-Flag_of_the_Russian_Soviet_Federative_Socialist_Republic_%281954%E2%80%931991%29.svg.png' },
+            // FIXED SPARTA (Direct PNG)
+            { id: 'sparta', name: 'Sparta', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Vexilloid_of_Sparta.svg/320px-Vexilloid_of_Sparta.svg.png' },
+            { id: 'athens', name: 'Athens', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Owl_of_Athena.svg/320px-Owl_of_Athena.svg.png' },
+            // FIXED PHOENICIA (Direct PNG)
+            { id: 'phoenicia', name: 'Phoenicia', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/Phoenician_ship.svg/320px-Phoenician_ship.svg.png' },
+            // FIXED BABYLON (Direct PNG)
+            { id: 'babylon', name: 'Babylon', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/Lion_of_Babylon.svg/320px-Lion_of_Babylon.svg.png' },
+            { id: 'persian_empire', name: 'Persian Empire', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Standard_of_Cyrus_the_Great_%28Achaemenid_Empire%29.svg/320px-Standard_of_Cyrus_the_Great_%28Achaemenid_Empire%29.svg.png', aliases: ['achaemenid'] },
+            { id: 'mongol_empire', name: 'Mongol Empire', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/Flag_of_the_Mongol_Empire.svg/320px-Flag_of_the_Mongol_Empire.svg.png' },
+            { id: 'holy_roman_empire', name: 'Holy Roman Empire', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/Banner_of_the_Holy_Roman_Emperor_with_haloes_%281400-1806%29.svg/320px-Banner_of_the_Holy_Roman_Emperor_with_haloes_%281400-1806%29.svg.png', aliases: ['hre'] },
+            { id: 'east_germany', name: 'East Germany', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Flag_of_East_Germany.svg/320px-Flag_of_East_Germany.svg.png', aliases: ['gdr'] },
+            { id: 'yugoslavia', name: 'Yugoslavia', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/Flag_of_Yugoslavia_%281946-1992%29.svg/320px-Flag_of_Yugoslavia_%281946-1992%29.svg.png' },
+            { id: 'confederate_states', name: 'Confederate States', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Flag_of_the_Confederate_States_of_America_%281861%E2%80%931863%29.svg/320px-Flag_of_the_Confederate_States_of_America_%281861%E2%80%931863%29.svg.png', aliases: ['csa'] },
+            { id: 'texas', name: 'Republic of Texas', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Flag_of_Texas.svg/320px-Flag_of_Texas.svg.png' },
+            // FIXED PLC (Direct PNG)
+            { id: 'polish_lithuanian_commonwealth', name: 'Polish-Lithuanian Commonwealth', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/42/Flag_of_the_Polish-Lithuanian_Commonwealth.svg/320px-Flag_of_the_Polish-Lithuanian_Commonwealth.svg.png', aliases: ['plc'] },
+            { id: 'kingdom_of_france', name: 'Kingdom of France', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Pavillon_royal_de_la_France.svg/320px-Pavillon_royal_de_la_France.svg.png' },
+            { id: 'scotland', name: 'Scotland', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Flag_of_Scotland.svg/320px-Flag_of_Scotland.svg.png' },
+            { id: 'wales', name: 'Wales', rarity: 'Rare', image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/Flag_of_Wales_%281959%E2%80%93present%29.svg/320px-Flag_of_Wales_%281959%E2%80%93present%29.svg.png' },
+            
+            // Territories & Others (Using Codes where possible)
+            { id: 'hong_kong', name: 'Hong Kong', rarity: 'Rare', code: 'hk' },
+            { id: 'macau', name: 'Macau', rarity: 'Rare', code: 'mo' },
+            { id: 'puerto_rico', name: 'Puerto Rico', rarity: 'Rare', code: 'pr' },
+            { id: 'greenland', name: 'Greenland', rarity: 'Rare', code: 'gl' },
+            { id: 'faroe_islands', name: 'Faroe Islands', rarity: 'Rare', code: 'fo' },
+            { id: 'french_guiana', name: 'French Guiana', rarity: 'Rare', code: 'gf' },
+            { id: 'guadeloupe', name: 'Guadeloupe', rarity: 'Rare', code: 'gp' },
+            { id: 'martinique', name: 'Martinique', rarity: 'Rare', code: 'mq' },
+            { id: 'reunion', name: 'Reunion', rarity: 'Rare', code: 're' },
+            { id: 'mayotte', name: 'Mayotte', rarity: 'Rare', code: 'yt' },
+            { id: 'french_polynesia', name: 'French Polynesia', rarity: 'Rare', code: 'pf' },
+            { id: 'new_caledonia', name: 'New Caledonia', rarity: 'Rare', code: 'nc' },
+            { id: 'wallis_and_futuna', name: 'Wallis and Futuna', rarity: 'Rare', code: 'wf' },
+            { id: 'saint_pierre_and_miquelon', name: 'Saint Pierre and Miquelon', rarity: 'Rare', code: 'pm' },
+            { id: 'aruba', name: 'Aruba', rarity: 'Rare', code: 'aw' },
+            { id: 'curacao', name: 'Curacao', rarity: 'Rare', code: 'cw' },
+            { id: 'sint_maarten', name: 'Sint Maarten', rarity: 'Rare', code: 'sx' },
+            { id: 'bonaire', name: 'Bonaire', rarity: 'Rare', code: 'bq' },
+            { id: 'bermuda', name: 'Bermuda', rarity: 'Rare', code: 'bm' },
+            { id: 'cayman_islands', name: 'Cayman Islands', rarity: 'Rare', code: 'ky' },
+            { id: 'falkland_islands', name: 'Falkland Islands', rarity: 'Rare', code: 'fk' },
+            { id: 'gibraltar', name: 'Gibraltar', rarity: 'Rare', code: 'gi' },
+            { id: 'isle_of_man', name: 'Isle of Man', rarity: 'Rare', code: 'im' },
+            { id: 'jersey', name: 'Jersey', rarity: 'Rare', code: 'je' },
+            { id: 'guernsey', name: 'Guernsey', rarity: 'Rare', code: 'gg' },
+            { id: 'montserrat', name: 'Montserrat', rarity: 'Rare', code: 'ms' },
+            { id: 'pitcairn', name: 'Pitcairn Islands', rarity: 'Rare', code: 'pn' },
+            { id: 'saint_helena', name: 'Saint Helena', rarity: 'Rare', code: 'sh' },
+            { id: 'turks_and_caicos', name: 'Turks and Caicos', rarity: 'Rare', code: 'tc' },
+            { id: 'british_virgin_islands', name: 'British Virgin Islands', rarity: 'Rare', code: 'vg' },
+            { id: 'us_virgin_islands', name: 'US Virgin Islands', rarity: 'Rare', code: 'vi' },
+            { id: 'american_samoa', name: 'American Samoa', rarity: 'Rare', code: 'as' },
+            { id: 'guam', name: 'Guam', rarity: 'Rare', code: 'gu' },
+            { id: 'northern_mariana_islands', name: 'Northern Mariana Islands', rarity: 'Rare', code: 'mp' },
+            { id: 'anguilla', name: 'Anguilla', rarity: 'Rare', code: 'ai' },
+            { id: 'cook_islands', name: 'Cook Islands', rarity: 'Rare', code: 'ck' },
+            { id: 'niue', name: 'Niue', rarity: 'Rare', code: 'nu' },
+            { id: 'tokelau', name: 'Tokelau', rarity: 'Rare', code: 'tk' },
+            { id: 'christmas_island', name: 'Christmas Island', rarity: 'Rare', code: 'cx' },
+            { id: 'cocos_islands', name: 'Cocos Islands', rarity: 'Rare', code: 'cc' },
+            { id: 'norfolk_island', name: 'Norfolk Island', rarity: 'Rare', code: 'nf' },
+            { id: 'western_sahara', name: 'Western Sahara', rarity: 'Rare', code: 'eh' },
+            { id: 'antarctica', name: 'Antarctica', rarity: 'Rare', code: 'aq' }
+        ];
+
+        // COMBINE DATA
+        const COMMON_BALLS = MODERN_COUNTRIES.map(c => ({
+            id: c.c,
+            name: c.n,
+            rarity: 'Common',
+            code: c.c,
+            aliases: c.a || []
+        }));
+
+        const COUNTRIES_DATA = [...SPECIAL_BALLS, ...COMMON_BALLS];
+
+        // --- CONSTANTS ---
+        const RARITY_COLORS = {
+            'T1': 'text-red-500 bg-red-500/10 border-red-500/50',
+            'T8': 'text-orange-500 bg-orange-500/10 border-orange-500/50',
+            'Rare': 'text-purple-500 bg-purple-500/10 border-purple-500/50',
+            'Common': 'text-blue-400 bg-blue-500/10 border-blue-500/50'
+        };
+        const RARITY_ORDER = ['T1', 'T8', 'Rare', 'Common'];
+
+        // --- STATE ---
+        var appState = {
+            username: null,
+            currentBall: null,
+            caughtBalls: [],
+            streak: 0,
+            sortBy: 'rarity_desc',
+            view: 'login',
+            settings: {
+                hardMode: false
+            }
+        };
+
+        // --- INIT ---
+        function init() {
+            updateUI();
+        }
+
+        // --- LOGIN LOGIC ---
+        window.handleLogin = function(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('login-input');
+            const passwordInput = document.getElementById('login-password');
+            const errorMsg = document.getElementById('login-error');
+            
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (username && password) {
+                // Try load
+                const key = `balldex_${username}_data`;
+                const saved = localStorage.getItem(key);
+                
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        if (data.password && data.password !== password) {
+                            errorMsg.classList.remove('hidden');
+                            errorMsg.textContent = "Incorrect password!";
+                            return;
+                        }
+                    } catch (err) {}
+                }
+
+                appState.username = username;
+                appState.view = 'spawn';
+                errorMsg.classList.add('hidden');
+                
+                loadUserData(username, password);
+                
+                document.getElementById('nav-username').textContent = username;
+                document.getElementById('navbar').classList.remove('hidden');
+                
+                switchView('spawn');
+                spawnNewBall();
+            }
+        }
+
+        window.logout = function() {
+            appState.username = null;
+            appState.caughtBalls = [];
+            appState.streak = 0;
+            appState.view = 'login';
+            
+            document.getElementById('navbar').classList.add('hidden');
+            document.getElementById('login-password').value = ''; 
+            switchView('login');
+        }
+
+        // --- DATA PERSISTENCE & SETTINGS ---
+        function loadUserData(username, password) {
+            try {
+                const key = `balldex_${username}_data`;
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    appState.caughtBalls = data.caught || [];
+                    appState.streak = data.streak || 0;
+                    appState.settings = data.settings || { hardMode: false };
+                    if (!data.password) saveUserData(password); 
+                } else {
+                    appState.caughtBalls = [];
+                    appState.streak = 0;
+                    appState.settings = { hardMode: false };
+                    saveUserData(password);
+                }
+            } catch (e) {
+                console.error("Save load error", e);
+            }
+            // Apply Settings
+            document.getElementById('hard-mode-toggle').checked = appState.settings.hardMode;
+            updateStats();
+        }
+
+        function saveUserData(newPassword = null) {
+            if (!appState.username) return;
+            const key = `balldex_${appState.username}_data`;
+            
+            let passwordToSave = newPassword;
+            if (!passwordToSave) {
+                const saved = localStorage.getItem(key);
+                if (saved) {
+                    const data = JSON.parse(saved);
+                    passwordToSave = data.password;
+                }
+            }
+
+            const data = {
+                password: passwordToSave,
+                caught: appState.caughtBalls,
+                streak: appState.streak,
+                settings: appState.settings
+            };
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        // Settings Logic
+        window.toggleHardMode = function(el) {
+            appState.settings.hardMode = el.checked;
+            saveUserData();
+            // If currently spawning, update visibility immediately
+            const overlay = document.getElementById('spawn-hidden-overlay');
+            const img = document.getElementById('spawn-image');
+            if(appState.view === 'spawn') {
+                if (appState.settings.hardMode) {
+                    overlay.classList.remove('hidden');
+                } else {
+                    overlay.classList.add('hidden');
+                }
+            }
+        }
+
+        window.exportData = function() {
+            if (!appState.username) return;
+            const key = `balldex_${appState.username}_data`;
+            const data = localStorage.getItem(key);
+            if(data) {
+                 navigator.clipboard.writeText(data).then(() => {
+                     alert("Save data copied to clipboard!");
+                 });
+            }
+        }
+
+        window.resetData = function() {
+            if(confirm("Are you sure? This will delete all your caught balls!")) {
+                appState.caughtBalls = [];
+                appState.streak = 0;
+                saveUserData();
+                updateStats();
+                alert("Progress reset.");
+            }
+        }
+
+        // --- VIEW LOGIC ---
+        window.switchView = function(viewName) {
+            appState.view = viewName;
+            
+            ['view-login', 'view-spawn', 'view-dex', 'view-index', 'view-settings'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add('hidden');
+            });
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+
+            if (appState.username) {
+                const btnSpawn = document.getElementById('nav-spawn');
+                const btnDex = document.getElementById('nav-dex');
+                const btnIndex = document.getElementById('nav-index');
+                const btnSettings = document.getElementById('nav-settings');
+
+                // Reset all nav styles
+                [btnSpawn, btnDex, btnIndex, btnSettings].forEach(btn => {
+                    btn.classList.remove('bg-[#40444b]', 'text-white');
+                    btn.classList.add('text-gray-400', 'hover:text-gray-200');
+                    if(btn === btnSettings) btn.classList.add('hover:bg-[#40444b]'); 
+                });
+
+                // Set active style
+                let activeBtn;
+                if (viewName === 'spawn') activeBtn = btnSpawn;
+                else if (viewName === 'dex') activeBtn = btnDex;
+                else if (viewName === 'index') activeBtn = btnIndex;
+                else if (viewName === 'settings') activeBtn = btnSettings;
+
+                if (activeBtn) {
+                    activeBtn.classList.add('bg-[#40444b]', 'text-white');
+                    activeBtn.classList.remove('text-gray-400', 'hover:text-gray-200');
+                }
+
+                if (viewName === 'dex') renderDex();
+                if (viewName === 'index') renderIndex();
+            }
+        }
+
+        function updateUI() {
+            if (appState.view === 'login') {
+                document.getElementById('view-login').classList.remove('hidden');
+            } else {
+                window.switchView(appState.view);
+            }
+        }
+
+        // --- GAME LOGIC ---
+        function getBallImage(ball) {
+            if (!ball) return '';
+            if (ball.image) return ball.image;
+            if (ball.code) return `https://flagcdn.com/w640/${ball.code}.png`;
+            return '';
+        }
+
+        function spawnNewBall() {
+            const img = document.getElementById('spawn-image');
+            const loader = document.getElementById('loader');
+            const rarityGlow = document.getElementById('rarity-glow');
+            const errorMsg = document.getElementById('image-error');
+            const errorNameSpan = document.getElementById('error-ball-name');
+            const overlay = document.getElementById('spawn-hidden-overlay');
+            
+            img.classList.add('hidden');
+            errorMsg.classList.add('hidden');
+            loader.classList.remove('hidden');
+            rarityGlow.classList.add('hidden');
+            overlay.classList.add('hidden');
+
+            document.getElementById('guess-input').value = '';
+            setMessage('A wild countryball appeared! Guess its name!', 'info');
+
+            const loadTimeout = setTimeout(() => {
+                if (!img.complete || img.classList.contains('hidden')) {
+                     loader.classList.add('hidden');
+                     errorMsg.classList.remove('hidden');
+                     if(appState.currentBall) errorNameSpan.textContent = appState.currentBall.name;
+                }
+            }, 6000); 
+
+            setTimeout(() => {
+                const randomBall = COUNTRIES_DATA[Math.floor(Math.random() * COUNTRIES_DATA.length)];
+                appState.currentBall = randomBall;
+                
+                img.onload = null;
+                img.onerror = null;
+
+                img.onload = () => {
+                    clearTimeout(loadTimeout);
+                    img.classList.remove('hidden');
+                    loader.classList.add('hidden');
+                    // Check settings
+                    if (appState.settings.hardMode) {
+                        overlay.classList.remove('hidden');
+                    }
+                };
+
+                img.onerror = () => {
+                    if (randomBall.code && !img.src.includes('flagcdn.com')) {
+                        img.src = `https://flagcdn.com/w640/${randomBall.code}.png`;
+                    } else {
+                        clearTimeout(loadTimeout);
+                        loader.classList.add('hidden');
+                        errorMsg.classList.remove('hidden');
+                        errorNameSpan.textContent = randomBall.name;
+                    }
+                };
+
+                img.src = getBallImage(randomBall);
+
+                if (randomBall.rarity === 'T1' || randomBall.rarity === 'T8') {
+                    rarityGlow.classList.remove('hidden');
+                }
+
+                const input = document.getElementById('guess-input');
+                if(input) input.focus();
+            }, 100); 
+        }
+
+        function setMessage(text, type) {
+            const msgEl = document.getElementById('game-message');
+            msgEl.textContent = text;
+            msgEl.className = 'mb-4 text-center font-bold h-6 transition-colors duration-200';
+            if (type === 'success') msgEl.classList.add('text-green-400');
+            else if (type === 'error') msgEl.classList.add('text-red-400');
+            else msgEl.classList.add('text-indigo-300');
+        }
+
+        window.handleGuess = function(e) {
+            e.preventDefault();
+            if (!appState.currentBall) return;
+
+            const input = document.getElementById('guess-input');
+            const guess = input.value.toLowerCase().trim();
+            const correctName = appState.currentBall.name.toLowerCase();
+            const aliases = appState.currentBall.aliases || [];
+
+            if (guess === correctName || aliases.some(a => a.toLowerCase() === guess)) {
+                // Remove hard mode overlay if active
+                document.getElementById('spawn-hidden-overlay').classList.add('hidden');
+
+                const isNew = !appState.caughtBalls.includes(appState.currentBall.id);
+                
+                let msg = `You caught ${appState.currentBall.name}!`;
+                if (!isNew) msg += " (Duplicate +1)";
+                else msg += " (New Entry!)";
+
+                setMessage(msg, 'success');
+                appState.streak++;
+                
+                if (isNew) {
+                    appState.caughtBalls.push(appState.currentBall.id);
+                }
+                
+                saveUserData();
+                updateStats();
+                setTimeout(spawnNewBall, 1500);
+            } else {
+                setMessage('Wrong name! Try again.', 'error');
+                appState.streak = 0;
+                saveUserData();
+                updateStats();
+            }
+            input.value = '';
+        }
+
+        window.skipBall = function() {
+            if (!appState.currentBall) return;
+            // Reveal if hard mode was on
+            document.getElementById('spawn-hidden-overlay').classList.add('hidden');
+            
+            setMessage(`You fled from ${appState.currentBall.name}.`, 'info');
+            appState.streak = 0;
+            saveUserData();
+            updateStats();
+            setTimeout(spawnNewBall, 1000);
+        }
+
+        function updateStats() {
+            document.getElementById('streak-display').textContent = appState.streak;
+            document.getElementById('caught-count-spawn').textContent = appState.caughtBalls.length;
+            document.getElementById('total-count-spawn').textContent = COUNTRIES_DATA.length;
+            document.getElementById('caught-count-dex').textContent = appState.caughtBalls.length;
+            document.getElementById('total-count-dex').textContent = COUNTRIES_DATA.length;
+
+            const percent = Math.round((appState.caughtBalls.length / COUNTRIES_DATA.length) * 100);
+            document.getElementById('completion-percent').textContent = `${percent}%`;
+            document.getElementById('completion-bar').style.width = `${percent}%`;
+        }
+
+        // --- DEX LOGIC ---
+        function renderLegend() {
+            const legend = document.getElementById('rarity-legend');
+            let html = '';
+            RARITY_ORDER.forEach(r => {
+                html += `<span class="px-3 py-1 rounded-full text-xs font-bold border ${RARITY_COLORS[r]} whitespace-nowrap">${r}</span>`;
+            });
+            legend.innerHTML = html;
+        }
+
+        window.handleSort = function(val) {
+            appState.sortBy = val;
+            renderDex();
+        }
+
+        window.filterDex = function() {
+            renderDex();
+        }
+
+        function renderDex() {
+            const grid = document.getElementById('dex-grid');
+            const search = document.getElementById('dex-search').value.toLowerCase();
+            
+            // Filter
+            let filteredBalls = COUNTRIES_DATA.filter(b => 
+                b.name.toLowerCase().includes(search) || 
+                (b.aliases && b.aliases.some(a => a.toLowerCase().includes(search)))
+            );
+
+            // Sort
+            filteredBalls.sort((a, b) => {
+                const aCaught = appState.caughtBalls.includes(a.id);
+                const bCaught = appState.caughtBalls.includes(b.id);
+                const rarityOrder = {'T1': 0, 'T8': 1, 'Rare': 2, 'Common': 3};
+
+                switch(appState.sortBy) {
+                    case 'rarity_desc': 
+                        if (rarityOrder[a.rarity] !== rarityOrder[b.rarity]) 
+                            return rarityOrder[a.rarity] - rarityOrder[b.rarity];
+                        return a.name.localeCompare(b.name);
+                    
+                    case 'rarity_asc': 
+                        if (rarityOrder[a.rarity] !== rarityOrder[b.rarity]) 
+                            return rarityOrder[b.rarity] - rarityOrder[a.rarity];
+                        return a.name.localeCompare(b.name);
+
+                    case 'name_asc':
+                        return a.name.localeCompare(b.name);
+
+                    case 'name_desc':
+                        return b.name.localeCompare(a.name);
+
+                    case 'caught_desc': 
+                        if (aCaught !== bCaught) return aCaught ? -1 : 1;
+                        return rarityOrder[a.rarity] - rarityOrder[b.rarity];
+
+                    case 'caught_asc': 
+                        if (aCaught !== bCaught) return aCaught ? 1 : -1;
+                        return rarityOrder[a.rarity] - rarityOrder[b.rarity];
+                    
+                    default: return 0;
+                }
+            });
+
+            let html = '';
+            filteredBalls.forEach(ball => {
+                const isCaught = appState.caughtBalls.includes(ball.id);
+                const rarityClass = RARITY_COLORS[ball.rarity];
+                let imageSrc = getBallImage(ball);
+                if(ball.code) imageSrc = `https://flagcdn.com/w160/${ball.code}.png`;
+
+                html += `
+                <div class="relative group bg-[#202225] rounded-lg overflow-hidden border border-[#2f3136] transition-all hover:scale-105 hover:border-indigo-500/50 hover:shadow-lg ${isCaught ? 'opacity-100' : 'opacity-60'}">
+                    <div class="aspect-[4/3] bg-[#2f3136] p-2 flex items-center justify-center relative">
+                        <!-- ADDED referrerpolicy="no-referrer" HERE -->
+                        <img src="${imageSrc}" class="max-w-full max-h-full shadow-md ${!isCaught ? 'uncaught-img' : ''}" loading="lazy" referrerpolicy="no-referrer" onerror="this.src='https://placehold.co/160x120?text=?'">
+                        ${isCaught ? '<div class="absolute top-1 right-1 text-yellow-400"><i class="fas fa-star text-xs"></i></div>' : ''}
+                    </div>
+                    <div class="p-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${rarityClass}">${ball.rarity}</span>
+                        </div>
+                        <h3 class="font-bold text-xs text-gray-200 truncate" title="${ball.name}">${isCaught ? ball.name : '???'}</h3>
+                    </div>
+                </div>
+                `;
+            });
+            
+            if (filteredBalls.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No countryballs found matching your search.</div>';
+            } else {
+                grid.innerHTML = html;
+            }
+        }
+
+        // --- INDEX LOGIC ---
+        window.filterIndex = function() {
+            renderIndex();
+        }
+
+        function renderIndex() {
+            const grid = document.getElementById('index-grid');
+            const search = document.getElementById('index-search').value.toLowerCase();
+            
+            // Filter
+            let filteredBalls = COUNTRIES_DATA.filter(b => 
+                b.name.toLowerCase().includes(search) || 
+                (b.aliases && b.aliases.some(a => a.toLowerCase().includes(search)))
+            );
+
+            // Sort alphabetically by name for reference
+            filteredBalls.sort((a, b) => a.name.localeCompare(b.name));
+
+            let html = '';
+            filteredBalls.forEach(ball => {
+                const isCaught = appState.caughtBalls.includes(ball.id);
+                const rarityClass = RARITY_COLORS[ball.rarity];
+                let imageSrc = getBallImage(ball);
+                if(ball.code) imageSrc = `https://flagcdn.com/w160/${ball.code}.png`;
+
+                html += `
+                <div class="relative group bg-[#202225] rounded-lg overflow-hidden border border-[#2f3136] transition-all hover:scale-105 hover:border-indigo-500/50 hover:shadow-lg">
+                    <div class="aspect-[4/3] bg-[#2f3136] p-2 flex items-center justify-center relative">
+                        <!-- ADDED referrerpolicy="no-referrer" HERE -->
+                        <img src="${imageSrc}" class="max-w-full max-h-full shadow-md" loading="lazy" referrerpolicy="no-referrer" onerror="this.src='https://placehold.co/160x120?text=?'">
+                        <div class="absolute top-1 right-1">
+                            ${isCaught 
+                                ? '<i class="fas fa-check-circle text-green-500 text-lg shadow-lg"></i>' 
+                                : '<i class="fas fa-times-circle text-red-500/50 text-lg shadow-lg"></i>'
+                            }
+                        </div>
+                    </div>
+                    <div class="p-2">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded border ${rarityClass}">${ball.rarity}</span>
+                        </div>
+                        <h3 class="font-bold text-xs text-gray-200 truncate" title="${ball.name}">${ball.name}</h3>
+                    </div>
+                </div>
+                `;
+            });
+            
+            if (filteredBalls.length === 0) {
+                grid.innerHTML = '<div class="col-span-full text-center text-gray-500 py-10">No countryballs found.</div>';
+            } else {
+                grid.innerHTML = html;
+            }
+        }
+
+        // Initialize
+        init();
+        renderLegend();
+
+        // Global key listener
+        document.addEventListener('keydown', function(e) {
+            if (appState.view === 'spawn' && !document.getElementById('guess-input').matches(':focus')) {
+                if (e.key.length === 1 && e.key.match(/[a-z]/i)) {
+                    document.getElementById('guess-input').focus();
+                }
+            }
+        });
+
+    })();
+    </script>
+</body>
+</html>
